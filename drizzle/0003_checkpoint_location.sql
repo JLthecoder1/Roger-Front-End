@@ -1,0 +1,1 @@
+ALTER TABLE checkpoints ADD COLUMN location TEXT NOT NULL DEFAULT '';
