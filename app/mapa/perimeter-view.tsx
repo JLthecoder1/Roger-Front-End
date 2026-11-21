@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {locations,makePerimeter} from './perimeter-scene'
 import {CheckpointWindow} from '../operacoes/checkpoint-window'
+import {CameraWindow} from '../operacoes/camera-window'
 import {OperationWindow,type OperationTab} from '../operacoes/operation-window'
 import {useRound} from '../use-round'
 
@@ -28,6 +29,7 @@ const menuIcons=[
   'M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z',
   'M18 8a6 6 0 0 0-12 0c0 6-2 7-3 9h18c-1-2-3-3-3-9ZM10 21h4',
   'M5 6h2m3 0h9M5 12h2m3 0h9M5 18h2m3 0h9',
+  'M4 7h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 4 5-3v10l-5-3',
 ]
 
 type BrowserSpeechRecognition=new()=>{
@@ -54,7 +56,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const pins=useRef<(HTMLButtonElement|null)[]>([])
   const actions=useRef<{zoom:(factor:number)=>void;reset:()=>void}|null>(null)
   const [menuOpen,setMenuOpen]=useState(true)
-  const [openPanel,setOpenPanel]=useState<OperationTab|'Checkpoints'|null>(null)
+  const [openPanel,setOpenPanel]=useState<OperationTab|'Checkpoints'|'Camera'|null>(null)
   const [selected,setSelected]=useState<number|null>(null)
   const [unavailable,setUnavailable]=useState(false)
   const [chatOpen,setChatOpen]=useState(true)
@@ -63,6 +65,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const [avatarClosing,setAvatarClosing]=useState(false)
   const [chatClosing,setChatClosing]=useState(false)
   const [logsClosing,setLogsClosing]=useState(false)
+  const [cameraClosing,setCameraClosing]=useState(false)
   const [avatarMaximized,setAvatarMaximized]=useState(false)
   const [chatMaximized,setChatMaximized]=useState(false)
   const [logsMaximized,setLogsMaximized]=useState(false)
@@ -166,6 +169,15 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
     }
     setLogsClosing(true)
     window.setTimeout(()=>{setLogsOpen(false);setLogsClosing(false);if(close)setLogsMaximized(false)},180)
+  }
+  const closeCamera=()=>{
+    if(cameraClosing) return
+    setCameraClosing(true)
+    window.setTimeout(()=>{setOpenPanel(null);setCameraClosing(false)},180)
+  }
+  const toggleCamera=()=>{
+    if(openPanel==='Camera') closeCamera()
+    else {setCameraClosing(false);setOpenPanel('Camera')}
   }
   useEffect(()=>{
     const sound=openingSound.current
@@ -368,6 +380,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         <div className="perimeter-pages">
           <button type="button" aria-current="page" onClick={()=>setOpenPanel(null)}><MenuIcon index={4}/><span>Mapa do perímetro</span></button>
           <button type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel('Checkpoints')}><MenuIcon index={5}/><span>Checkpoints</span></button>
+          <button type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel('Camera')}><MenuIcon index={10}/><span>Câmera</span></button>
           {operationTabs.map(({label,icon})=><button key={label} type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel(label)}><MenuIcon index={icon}/><span>{label}</span></button>)}
         </div>
         <div className="perimeter-menu-destinations" role="group" aria-label="Locais do perímetro">
@@ -382,6 +395,10 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         <button type="button" aria-label="Mostrar ou minimizar avatar do Roger" aria-pressed={avatarOpen&&!avatarClosing} disabled={avatarClosing} onClick={()=>{setFrontPanel('avatar');if(avatarOpen) hidePanel('avatar');else setAvatarOpen(true)}}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M5 21a7 7 0 0 1 14 0M4 4h16v16H4z"/></svg>
           <span>Avatar</span>
+        </button>
+        <button type="button" aria-label="Mostrar ou minimizar câmera" aria-pressed={openPanel==='Camera'&&!cameraClosing} disabled={cameraClosing} onClick={toggleCamera}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 4 5-3v10l-5-3"/></svg>
+          <span>Câmera</span>
         </button>
         <button type="button" aria-pressed={chatOpen&&!chatClosing} disabled={chatClosing} onClick={()=>{
           setFrontPanel('chat')
@@ -457,6 +474,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         </div>
         <button type="button" className="perimeter-resize-handle" aria-label="Redimensionar logs" onPointerDown={event=>startResize('logs',event)}/>
       </section>}
+      <CameraWindow open={openPanel==='Camera'} closing={cameraClosing} onClose={closeCamera}/>
       <div className="perimeter-zoom perimeter-zoom--floating" role="group" aria-label="Controles do mapa">
         <button type="button" aria-label="Reduzir zoom" disabled={unavailable} onClick={()=>actions.current?.zoom(1/1.2)}>−</button>
         <button type="button" aria-label="Aumentar zoom" disabled={unavailable} onClick={()=>actions.current?.zoom(1.2)}>+</button>
@@ -487,6 +505,6 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
     </div>}
     </div>
     {openPanel==='Checkpoints'&&<CheckpointWindow onClose={()=>setOpenPanel(null)}/>}
-    {openPanel&&openPanel!=='Checkpoints'&&<OperationWindow tab={openPanel} onClose={()=>setOpenPanel(null)}/>}
+    {openPanel&&openPanel!=='Checkpoints'&&openPanel!=='Camera'&&<OperationWindow tab={openPanel} onClose={()=>setOpenPanel(null)}/>}
   </section>
 }
