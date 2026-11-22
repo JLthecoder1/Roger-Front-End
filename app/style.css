@@ -227,15 +227,15 @@ dialog.checkpoint-dialog{width:min(100% - 24px,960px);max-height:calc(100dvh - 2
 .checkpoint-notion-header span{display:block;margin-bottom:5px;color:var(--green);font-size:10px;font-weight:700;letter-spacing:.12em}
 .checkpoint-notion-header h3{margin:0;color:#edf0f1;font-size:26px;letter-spacing:-.03em}
 .checkpoint-notion-header p{margin:0;color:#9da4a7;font-size:12px}
-.checkpoint-notion-composer{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) minmax(118px,auto) auto;align-items:center;gap:10px;margin:14px 16px 8px;padding:7px 8px 7px 12px;border:1px solid #3b4448;border-radius:8px;background:#171c1e}
-.checkpoint-notion-composer>span{color:var(--green);font-size:20px;line-height:1}
+.checkpoint-notion-composer{display:grid;grid-template-columns:minmax(0,2fr) minmax(100px,1fr) minmax(110px,1fr) auto;align-items:end;gap:10px;margin:14px 16px 8px;padding:7px 8px 7px 12px;border:1px solid #3b4448;border-radius:8px;background:#171c1e}
+.checkpoint-notion-composer label{display:grid;gap:5px;min-width:0;color:#cdd3d5;font-size:12px}.checkpoint-notion-composer input{padding:5px 7px}.checkpoint-notion-details{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}.checkpoint-notion-details strong{overflow-wrap:anywhere}
 .checkpoint-notion-composer input{min-width:0;border:0;outline:0;background:transparent;color:#edf0f1;font:inherit}
 .checkpoint-notion-composer select{min-width:0;border:1px solid #3b4448;border-radius:5px;background:#101415;color:#cdd3d5;padding:5px 7px;font-size:12px}
 .checkpoint-notion-composer button{border:1px solid var(--green);border-radius:6px;background:var(--green);color:#142014;padding:6px 10px;font-size:12px;font-weight:750}
 .checkpoint-notion-composer button:disabled{opacity:.45}
 .checkpoint-notion-list{position:relative;padding:0 16px 16px 42px}
 .checkpoint-notion-list::before{content:'';position:absolute;left:28px;top:0;bottom:16px;border-left:1px solid #394044}
-.checkpoint-notion-item{position:relative;display:grid;grid-template-columns:auto auto auto minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;padding:8px 7px 8px 2px;border-bottom:1px solid #252c2f;transition:background .15s}
+.checkpoint-notion-item{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;min-height:56px;padding:8px 7px 8px 2px;border-bottom:1px solid #252c2f;transition:background .15s}
 .checkpoint-notion-item::before{content:'';position:absolute;left:-14px;top:50%;width:14px;border-top:1px solid #394044}
 .checkpoint-notion-item:hover{background:#181e20}
 .checkpoint-notion-item:last-child{border-bottom:0}
@@ -268,7 +268,7 @@ dialog.checkpoint-dialog{width:min(100% - 24px,960px);max-height:calc(100dvh - 2
 .checkpoint-confirm-actions .checkpoint-confirm-delete{border-color:#ce4c51;background:#c93f46;color:#fff}
 .checkpoint-confirm-actions .checkpoint-confirm-delete:hover{background:#df4d55}
 .checkpoint-confirm-actions button:disabled{opacity:.5}
-@media(max-width:620px){.checkpoint-notion-header{padding:16px}.checkpoint-notion-list{padding:0 10px 10px 32px}.checkpoint-notion-list::before{left:20px}.checkpoint-notion-item::before{left:-12px;width:12px}.checkpoint-notion-composer{grid-template-columns:auto minmax(0,1fr) auto;margin-inline:10px}.checkpoint-notion-composer .checkpoint-notion-task-input,.checkpoint-notion-composer select{grid-column:2 / -1}.checkpoint-notion-header h3{font-size:22px}}
+@media(max-width:620px){.checkpoint-notion-header{padding:16px}.checkpoint-notion-list{padding:0 10px 10px 32px}.checkpoint-notion-list::before{left:20px}.checkpoint-notion-item::before{left:-12px;width:12px}.checkpoint-notion-composer{grid-template-columns:repeat(2,minmax(0,1fr));margin-inline:10px}.checkpoint-notion-composer label:first-child,.checkpoint-notion-composer button{grid-column:1 / -1}.checkpoint-notion-header h3{font-size:22px}}
 .checkpoint-board{display:grid;grid-template-columns:minmax(170px,230px) minmax(0,1fr);gap:22px;margin-top:14px}
 .checkpoint-board aside{border-right:1px solid var(--line);padding-right:16px}
 .checkpoint-board section{min-width:0}
@@ -1203,3 +1203,45 @@ dialog {
   height:auto;
   filter:grayscale(1) invert(1);
 }
+
+.perimeter-chat-access{padding:5px 8px;font-size:12px;border-bottom:1px solid #34383a}
+.roger-access{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.roger-access input{width:112px;padding:5px;border:1px solid #4c4c4c;border-radius:5px;background:#161616;color:white}
+.roger-access button,.roger-access-button{border:1px solid #4c4c4c;border-radius:5px;background:#25292b;color:white;padding:4px 7px}
+.roger-access p,.perimeter-chat-form .roger-voice-feedback{grid-column:1/-1;flex-basis:100%;margin:0;font-size:12px}
+.checkpoint-task-details{grid-column:1/-1;padding:6px 0 4px;font-size:14px}
+.checkpoint-task-details .task-form{flex-wrap:wrap}
+
+.perimeter-avatar-screen { position: relative; }
+.perimeter-avatar-video { position: absolute; inset: 0; }
+
+.perimeter-risk-banner { position: fixed; top: 5rem; left: 50%; transform: translateX(-50%); z-index: 50; width: min(90vw, 34rem); padding: 14px; border: 2px solid #f25d5d; border-radius: 10px; background: #421b1b; color: #fff; }
+.perimeter-risk-banner p { margin: 6px 0 0; }
+
+.round-photo-dialog {
+  width: min(920px, calc(100% - 32px));
+  max-height: 90dvh;
+  padding: 16px;
+  border: 1px solid #474d50;
+  border-radius: 12px;
+  color: #f3f4f4;
+  background: #151718;
+}
+.round-photo-dialog::backdrop { background: rgb(0 0 0 / 76%); }
+.round-photo-dialog header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.round-photo-dialog h2 { margin: 0; }
+.round-photo-dialog img { display: block; width: 100%; max-height: 70dvh; object-fit: contain; background: #090a0b; }
+.round-photo-dialog button, .perimeter-photo-log button {
+  border: 1px solid #63696c;
+  border-radius: 6px;
+  background: #292d2f;
+  color: #fff;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.perimeter-photo-log button { display: block; margin-top: 6px; }
+.perimeter-photo-log { margin: 0 0 7px; padding: 7px 9px; border: 1px solid #34383a; border-radius: 8px; background: #17191a; color: #dfe3e5; font-size: 12px; }
+.perimeter-photo-log small { display: block; color: #aeb6b9; font-size: 9px; margin-bottom: 2px; }
+
+.perimeter-alert-count { margin-inline-start: auto; display: inline-grid; place-items: center; min-width: 20px; padding: 2px 5px; border-radius: 12px; background: #b62424; color: #fff; font-size: 11px; line-height: 1.2; }
+.perimeter-alert-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

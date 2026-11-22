@@ -1,5 +1,9 @@
 'use client'
 
+import {VoiceButton} from '../lib/voice'
+import type {IRemoteVideoTrack} from 'agora-rtc-sdk-ng'
+import {api} from '../api-client'
+
 import {useEffect,useRef,useState,type PointerEvent as ReactPointerEvent} from 'react'
 import * as THREE from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
@@ -7,6 +11,8 @@ import {locations,makePerimeter} from './perimeter-scene'
 import {CheckpointWindow} from '../operacoes/checkpoint-window'
 import {CameraWindow} from '../operacoes/camera-window'
 import {OperationWindow,type OperationTab} from '../operacoes/operation-window'
+import {RoundPhotoDialog} from '../operacoes/round-photo-dialog'
+import type {RoundPhoto} from '../round'
 import {useRound} from '../use-round'
 
 const operationTabs: {label:OperationTab;icon:number}[]=[
@@ -32,16 +38,6 @@ const menuIcons=[
   'M4 7h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm13 4 5-3v10l-5-3',
 ]
 
-type BrowserSpeechRecognition=new()=>{
-  lang:string
-  interimResults:boolean
-  continuous:boolean
-  start:()=>void
-  onresult:(event:{results:{[index:number]:{[index:number]:{transcript:string}}}})=>void
-  onerror:()=>void
-  onend:()=>void
-}
-
 function MenuIcon({index}:{index:number}){
   return <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={menuIcons[index]}/></svg>
 }
@@ -49,10 +45,30 @@ function MenuIcon({index}:{index:number}){
 export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const host=useRef<HTMLDivElement>(null)
   const openingSound=useRef<HTMLAudioElement>(null)
+  const avatarVideo=useRef<HTMLDivElement>(null)
+  const [avatarTrack,setAvatarTrack]=useState<IRemoteVideoTrack|null>(null)
   const avatarPanel=useRef<HTMLElement>(null)
   const chatPanel=useRef<HTMLElement>(null)
   const logsPanel=useRef<HTMLElement>(null)
   const {round,connected}=useRound()
+  const [voiceSession,setVoiceSession]=useState<string|null>(null)
+  const announcedRisks=useRef(new Set<string>())
+  const announcingRisk=useRef(false)
+  const [announcementError,setAnnouncementError]=useState(false)
+  const riskAlerts=round.alerts?.filter(alert=>alert.kind==='risk'&&!alert.acknowledged_at)??[]
+  useEffect(()=>{
+    if(!connected||!voiceSession||announcingRisk.current)return
+    const alertIds=riskAlerts.filter(alert=>!announcedRisks.current.has(alert.id)).slice(0,4).map(alert=>alert.id)
+    if(!alertIds.length)return
+    announcingRisk.current=true
+    void api.request('/api/voice/announce-risk',{method:'POST',body:JSON.stringify({sessionId:voiceSession,alertIds})})
+      .then(()=>{
+        alertIds.forEach(id=>announcedRisks.current.add(id))
+        setAnnouncementError(false)
+      })
+      .catch(()=>setAnnouncementError(true))
+      .finally(()=>{announcingRisk.current=false})
+  },[connected,voiceSession,riskAlerts])
   const pins=useRef<(HTMLButtonElement|null)[]>([])
   const actions=useRef<{zoom:(factor:number)=>void;reset:()=>void}|null>(null)
   const [menuOpen,setMenuOpen]=useState(true)
@@ -61,7 +77,14 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const [unavailable,setUnavailable]=useState(false)
   const [chatOpen,setChatOpen]=useState(true)
   const [logsOpen,setLogsOpen]=useState(false)
+  const [selectedPhoto,setSelectedPhoto]=useState<RoundPhoto|null>(null)
+  const photos=round.photos??[]
   const [avatarOpen,setAvatarOpen]=useState(true)
+  useEffect(()=>{
+    if(!avatarOpen||!avatarTrack||!avatarVideo.current)return
+    avatarTrack.play(avatarVideo.current,{fit:'cover'})
+    return ()=>avatarTrack.stop()
+  },[avatarOpen,avatarTrack])
   const [avatarClosing,setAvatarClosing]=useState(false)
   const [chatClosing,setChatClosing]=useState(false)
   const [logsClosing,setLogsClosing]=useState(false)
@@ -73,12 +96,9 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const [panelOffsets,setPanelOffsets]=useState({avatar:{x:0,y:0},chat:{x:0,y:0},logs:{x:0,y:0}})
   const [panelSizes,setPanelSizes]=useState<{avatar:number|null;chat:{width:number;height:number}|null;logs:{width:number;height:number}|null}>({avatar:null,chat:null,logs:null})
   const [chatMessage,setChatMessage]=useState('')
-  const [isListening,setIsListening]=useState(false)
   const [soundVolume,setSoundVolume]=useState(.6)
   const [soundMuted,setSoundMuted]=useState(false)
-  const [chatMessages,setChatMessages]=useState<{from:'roger'|'operador';text:string}[]>([
-    {from:'roger',text:'Conectado à portaria. Posso consultar os checkpoints e pendências da ronda.'}
-  ])
+  const [chatMessages,setChatMessages]=useState<{from:'roger'|'operador';text:string}[]>([])
   const startDrag=(panel:'avatar'|'chat'|'logs',event:ReactPointerEvent<HTMLElement>)=>{
     if(event.button!==0 || (event.target as HTMLElement).closest('button,input')) return
     event.preventDefault()
@@ -105,23 +125,6 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
     window.addEventListener('pointermove',move)
     window.addEventListener('pointerup',stop)
     window.addEventListener('pointercancel',stop)
-  }
-  const startVoiceInput=()=>{
-    const voiceWindow=window as typeof window & {SpeechRecognition?:BrowserSpeechRecognition;webkitSpeechRecognition?:BrowserSpeechRecognition}
-    const Recognition=voiceWindow.SpeechRecognition??voiceWindow.webkitSpeechRecognition
-    if(!Recognition){
-      setChatMessage('O reconhecimento de voz não é suportado neste navegador.')
-      return
-    }
-    const recognition=new Recognition()
-    recognition.lang='pt-BR'
-    recognition.interimResults=false
-    recognition.continuous=false
-    recognition.onresult=event=>setChatMessage(event.results[0][0].transcript)
-    recognition.onerror=()=>setChatMessage('Não foi possível reconhecer o áudio. Tente novamente.')
-    recognition.onend=()=>setIsListening(false)
-    setIsListening(true)
-    try {recognition.start()} catch {setIsListening(false)}
   }
   const startResize=(panel:'avatar'|'chat'|'logs',event:ReactPointerEvent<HTMLElement>)=>{
     event.preventDefault()
@@ -336,6 +339,10 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
     if(!text)return
     setChatMessages(messages=>[...messages,{from:'operador',text}])
     setChatMessage('')
+    if(!connected){
+      setChatMessages(messages=>[...messages,{from:'roger',text:'Conecte-se à API para consultar a ronda.'}])
+      return
+    }
     const completed=round.checks.length
     const pending=round.checkpoints.length-completed
     setChatMessages(messages=>[...messages,{from:'roger',text:`Turno atual: ${completed} concluídos e ${pending} pendentes. Há ${round.tasks.filter(task=>!task.done).length} tarefas em aberto.`}])
@@ -414,13 +421,14 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
           else setLogsOpen(true)
         }}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>
-          <span>Logs</span>
+          <span>Logs{photos.length>0&&' · '+photos.length+' fotos'}</span>
         </button>
       </nav>
       <div className="perimeter-communication" style={{zIndex:frontPanel==='avatar'?7:2}}>
         {avatarOpen&&<figure ref={avatarPanel} className={`perimeter-avatar perimeter-panel perimeter-draggable${avatarClosing?' is-closing':''}${avatarMaximized?' is-maximized':''}`} onPointerDown={event=>{setFrontPanel('avatar');startDrag('avatar',event)}} style={{transform:`translate(${panelOffsets.avatar.x}px,${panelOffsets.avatar.y}px)`,width:avatarMaximized?'min(42vw,520px)':panelSizes.avatar??undefined}}>
           <div className="perimeter-avatar-screen">
             <img src="/roger-avatar.webp" alt="Retrato do Roger" width={640} height={960}/>
+            {avatarTrack&&<div ref={avatarVideo} className="perimeter-avatar-video" aria-label="Avatar do Roger ao vivo"/>}
           </div>
           <figcaption>Roger <span className={connected?'communication-online':''}>{connected?'Conectado':'Aguardando conexão'}</span></figcaption>
           <div className="perimeter-panel-controls" aria-label="Controles do avatar">
@@ -431,9 +439,14 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
           <button type="button" className="perimeter-resize-handle" aria-label="Redimensionar avatar" onPointerDown={event=>startResize('avatar',event)}/>
         </figure>}
       </div>
-      {chatOpen&&<section ref={chatPanel} className={`perimeter-chat perimeter-chat--docked perimeter-panel${chatClosing?' is-closing':''}${chatMaximized?' is-maximized':''}`} aria-label="Chat do ROGER" onPointerDownCapture={()=>setFrontPanel('chat')} style={{transform:`translate(${panelOffsets.chat.x}px,${panelOffsets.chat.y}px)`,width:chatMaximized?'min(60vw,760px)':panelSizes.chat?.width??undefined,height:chatMaximized?'min(74vh,650px)':panelSizes.chat?.height??undefined,zIndex:frontPanel==='chat'?7:2}}>
+      {riskAlerts.length>0&&<aside className="perimeter-risk-banner" role="alert">
+        <strong>EMERGÊNCIA · PROTOCOLO DE RISCO</strong>
+        {riskAlerts.map(alert=><p key={alert.id}>{alert.message}</p>)}
+        {(!voiceSession||announcementError)&&<p>{announcementError?'Anúncio pela Agora indisponível.':'Aguardando conexão da voz do Roger.'}</p>}
+      </aside>}
+      <section hidden={!chatOpen} ref={chatPanel} className={`perimeter-chat perimeter-chat--docked perimeter-panel${chatClosing?' is-closing':''}${chatMaximized?' is-maximized':''}`} aria-label="Chat do ROGER" onPointerDownCapture={()=>setFrontPanel('chat')} style={{display:chatOpen?undefined:'none',transform:`translate(${panelOffsets.chat.x}px,${panelOffsets.chat.y}px)`,width:chatMaximized?'min(60vw,760px)':panelSizes.chat?.width??undefined,height:chatMaximized?'min(74vh,650px)':panelSizes.chat?.height??undefined,zIndex:frontPanel==='chat'?7:2}}>
         <header className="perimeter-chat-header perimeter-drag-handle" onPointerDown={event=>startDrag('chat',event)}>
-          <div><strong>ROGER</strong><small>{round.checks.length}/{round.checkpoints.length} check-ins concluídos</small></div>
+          <div><strong>ROGER · Supervisor Victor</strong><small>{round.checks.length}/{round.checkpoints.length} check-ins concluídos</small></div>
           <div className="perimeter-panel-controls" aria-label="Controles do chat">
             <button type="button" aria-label="Minimizar chat" onClick={()=>hidePanel('chat')}>−</button>
             <button type="button" aria-label={chatMaximized?'Restaurar tamanho do chat':'Maximizar chat'} onClick={()=>setChatMaximized(value=>!value)}>↗</button>
@@ -449,14 +462,13 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         </div>
         <form className="perimeter-chat-form" onSubmit={event=>{event.preventDefault();sendChat()}}>
           <input aria-label="Mensagem para o ROGER" value={chatMessage} onChange={event=>setChatMessage(event.target.value)} placeholder="Pergunte o que falta na ronda…"/>
-          <button className="perimeter-chat-speak" type="button" onClick={startVoiceInput} disabled={isListening} aria-pressed={isListening} title="Falar com o ROGER">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
-            <span>{isListening?'Ouvindo…':'Falar'}</span>
-          </button>
+          <VoiceButton autoStart api={api} onSession={setVoiceSession} onVideo={setAvatarTrack} className="perimeter-chat-speak" idleLabel="Falar" icon={
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
+          }/>
           <button type="submit" disabled={!chatMessage.trim()}>Enviar</button>
         </form>
         <button type="button" className="perimeter-resize-handle" aria-label="Redimensionar chat" onPointerDown={event=>startResize('chat',event)}/>
-      </section>}
+      </section>
       {logsOpen&&<section ref={logsPanel} className={`perimeter-logs perimeter-logs--docked perimeter-panel${logsClosing?' is-closing':''}${logsMaximized?' is-maximized':''}`} aria-label="Logs da ronda" onPointerDownCapture={()=>setFrontPanel('logs')} style={{transform:`translate(${panelOffsets.logs.x}px,${panelOffsets.logs.y}px)`,width:logsMaximized?'min(60vw,760px)':panelSizes.logs?.width??undefined,height:logsMaximized?'min(74vh,650px)':panelSizes.logs?.height??undefined,zIndex:frontPanel==='logs'?7:2}}>
         <header className="perimeter-chat-header perimeter-drag-handle" onPointerDown={event=>startDrag('logs',event)}>
           <div><strong>LOGS DA RONDA</strong><small>{round.checks.length}/{round.checkpoints.length} check-ins concluídos</small></div>
@@ -468,12 +480,20 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         </header>
         <div className="perimeter-logs-title">Eventos em tempo real</div>
         <div className="perimeter-chat-messages">
-          {round.checks.map(check=><p className="log" key={'check-'+check.id}><small>CHECK-IN CONCLUÍDO</small>{round.checkpoints.find(point=>point.id===check.id)?.name??check.id} · {check.officer}</p>)}
+          {photos.map(photo=><div className="log perimeter-photo-log" key={photo.id}>
+            <small>FOTO DA RONDA</small>
+            {photo.officer} · {new Date(photo.created_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}
+            <button type="button" onClick={()=>setSelectedPhoto(photo)}>Abrir foto</button>
+          </div>)}
+          {round.checks.map(check=><p className="log" key={'check-'+check.id}><small>CHECK-IN CONCLUÍDO</small>{round.checkpoints.find(point=>point.id===check.id)?.name??check.id} · {check.officer}{check.outcome?' · '+check.outcome:''}</p>)}
+          {(round.task_reports??[]).map(report=><p className="log" key={report.id}><small>{report.done?'TAREFA FEITA':'TAREFA NÃO FEITA'}</small>{report.task_title} · {report.location} · {report.officer} · {new Date(report.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}</p>)}
           {round.tasks.map(task=><p className="log" key={'task-'+task.id}><small>{task.done?'TAREFA CONCLUÍDA':'TAREFA CRIADA'}</small>{task.title}</p>)}
-          {!round.checks.length&&!round.tasks.length&&<p className="log"><small>SEM REGISTROS</small>Ainda não há eventos nesta ronda.</p>}
+          {(round.alerts??[]).map(alert=><p className="log" key={alert.id}><small>{alert.acknowledged_at?'ALERTA CONFIRMADO':'ALERTA'}</small>{alert.message}</p>)}
+          {!photos.length&&!round.task_reports?.length&&!round.checks.length&&!round.tasks.length&&!round.alerts?.length&&<p className="log"><small>SEM REGISTROS</small>Ainda não há eventos nesta ronda.</p>}
         </div>
         <button type="button" className="perimeter-resize-handle" aria-label="Redimensionar logs" onPointerDown={event=>startResize('logs',event)}/>
       </section>}
+      {selectedPhoto&&<RoundPhotoDialog key={selectedPhoto.id} photo={selectedPhoto} onClose={()=>setSelectedPhoto(null)}/>}
       <CameraWindow open={openPanel==='Camera'} closing={cameraClosing} onClose={closeCamera}/>
       <div className="perimeter-zoom perimeter-zoom--floating" role="group" aria-label="Controles do mapa">
         <button type="button" aria-label="Reduzir zoom" disabled={unavailable} onClick={()=>actions.current?.zoom(1/1.2)}>−</button>

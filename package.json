@@ -4,8 +4,7 @@
   "description": "",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:site": "npm run build && node scripts/build-worker.mjs"
+    "build": "next build"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +13,7 @@
   "dependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
+    "agora-rtc-sdk-ng": "^4.24.10",
     "next": "^16.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

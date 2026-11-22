@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useRef} from 'react'
 import {useRound} from '../use-round'
 import {CheckpointBoard} from './checkpoint-board'
 
@@ -21,7 +21,6 @@ export function CheckpointWindow({onClose}:{onClose:()=>void}){
     <CheckpointBoard
       points={round.checkpoints}
       completed={new Set(round.checks.map(check=>check.id))}
-      notice=""
     />
   </dialog>
 }

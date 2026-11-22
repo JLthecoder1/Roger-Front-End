@@ -2,6 +2,8 @@
 
 import {useEffect,useRef,useState,type PointerEvent as ReactPointerEvent} from 'react'
 
+const preferredCameraId='8fdcfed302700400bc972c00f1db5879852baa2b6b0eb0076e3656c2304ebf26'
+
 export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:()=>void;closing?:boolean}){
   const panel=useRef<HTMLElement>(null)
   const video=useRef<HTMLVideoElement>(null)
@@ -21,10 +23,10 @@ export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:
     if(!navigator.mediaDevices?.getUserMedia){setMessage('Este navegador não oferece acesso à câmera.');return}
     setMessage('Solicitando acesso à câmera…')
     try {
-      const next=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false})
+      const next=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:preferredCameraId}},audio:false})
       stream.current=next
       if(video.current){video.current.srcObject=next;await video.current.play()}
-      setMessage('Câmera ativa')
+      setMessage('Anker PowerConf C200 ativa')
     } catch {setMessage('Não foi possível acessar a câmera. Verifique a permissão e tente novamente.')}
   }
   const startDrag=(event:ReactPointerEvent<HTMLElement>)=>{
