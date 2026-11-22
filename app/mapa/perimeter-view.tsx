@@ -55,6 +55,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
   const announcedRisks=useRef(new Set<string>())
   const announcingRisk=useRef(false)
   const [announcementError,setAnnouncementError]=useState(false)
+  const pendingAlertCount=round.alerts?.filter(alert=>!alert.acknowledged_at).length??0
   const riskAlerts=round.alerts?.filter(alert=>alert.kind==='risk'&&!alert.acknowledged_at)??[]
   useEffect(()=>{
     if(!connected||!voiceSession||announcingRisk.current)return
@@ -388,7 +389,14 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
           <button type="button" aria-current="page" onClick={()=>setOpenPanel(null)}><MenuIcon index={4}/><span>Mapa do perímetro</span></button>
           <button type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel('Checkpoints')}><MenuIcon index={5}/><span>Checkpoints</span></button>
           <button type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel('Camera')}><MenuIcon index={10}/><span>Câmera</span></button>
-          {operationTabs.map(({label,icon})=><button key={label} type="button" aria-haspopup="dialog" onClick={()=>setOpenPanel(label)}><MenuIcon index={icon}/><span>{label}</span></button>)}
+          {operationTabs.map(({label,icon})=>{
+            const count=label==='Alertas'?pendingAlertCount:0
+            return <button key={label} type="button" aria-haspopup="dialog" aria-label={count?`Alertas, ${count} pendentes`:label} onClick={()=>setOpenPanel(label)}>
+              <MenuIcon index={icon}/><span>{label}</span>
+              {count>0&&<strong className="perimeter-alert-count" aria-hidden="true">{count}</strong>}
+            </button>
+          })}
+          <span className="perimeter-alert-status" role="status">{pendingAlertCount>0?`${pendingAlertCount} ${pendingAlertCount===1?'alerta pendente':'alertas pendentes'}`:''}</span>
         </div>
         <div className="perimeter-menu-destinations" role="group" aria-label="Locais do perímetro">
           {locations.map((location,index)=><button key={location.name} type="button" aria-label={location.name} title={location.name} aria-pressed={selected===index} disabled={unavailable} onClick={()=>setSelected(index)}><MenuIcon index={index}/><span>{location.name}</span></button>)}
@@ -462,7 +470,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
         </div>
         <form className="perimeter-chat-form" onSubmit={event=>{event.preventDefault();sendChat()}}>
           <input aria-label="Mensagem para o ROGER" value={chatMessage} onChange={event=>setChatMessage(event.target.value)} placeholder="Pergunte o que falta na ronda…"/>
-          <VoiceButton autoStart api={api} onSession={setVoiceSession} onVideo={setAvatarTrack} className="perimeter-chat-speak" idleLabel="Falar" icon={
+          <VoiceButton api={api} onSession={setVoiceSession} onVideo={setAvatarTrack} className="perimeter-chat-speak" idleLabel="Falar" icon={
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
           }/>
           <button type="submit" disabled={!chatMessage.trim()}>Enviar</button>
