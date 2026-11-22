@@ -1,5 +1,6 @@
 'use client'
 
+import {Access} from '../lib/access'
 import {VoiceButton} from '../lib/voice'
 import type {IRemoteVideoTrack} from 'agora-rtc-sdk-ng'
 import {api} from '../api-client'
@@ -465,6 +466,7 @@ export default function PerimeterView({withMenu=false}:{withMenu?:boolean}){
           <button type="button" role="tab" aria-selected="true">Conversar</button>
           <button type="button" role="tab" aria-selected="false" onClick={()=>{hidePanel('chat');setLogsOpen(true)}}>Logs em tempo real</button>
         </div>
+        <Access api={api}/>
         <div className="perimeter-chat-messages">
           {chatMessages.map((message,index)=><p key={index} className={message.from}>{message.text}</p>)}
         </div>

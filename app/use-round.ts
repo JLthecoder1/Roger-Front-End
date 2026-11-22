@@ -21,7 +21,7 @@ export function useRound(){
     if(!stopped&&!request.signal.aborted){setRound(initialRound);setConnected(false)}
    }finally{if(!stopped&&!request.signal.aborted)timer=setTimeout(refresh,2500)}
   }
-  const events=['roger:round-change']
+  const events=['roger:round-change','roger:credentials']
   events.forEach(event=>window.addEventListener(event,refresh))
   void refresh()
   return ()=>{stopped=true;controller?.abort();clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,refresh))}
