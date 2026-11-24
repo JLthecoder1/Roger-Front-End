@@ -2,6 +2,7 @@
 
 import {useEffect,useRef,useState,type ReactNode} from 'react'
 import type {IAgoraRTCClient,IMicrophoneAudioTrack,IRemoteAudioTrack,IRemoteVideoTrack} from 'agora-rtc-sdk-ng'
+import {DevicePicker} from './device-picker'
 import type {RogerApi} from './roger-api'
 
 type Session={id:string;appId:string;channel:string;uid:number;agentUid:number;avatarUid?:number|null;token:string;ttl:number}
@@ -21,6 +22,7 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
  const mounted=useRef(true)
  const [phase,setPhase]=useState<'idle'|'connecting'|'active'>('idle')
  const [message,setMessage]=useState('')
+ const [choosingDevice,setChoosingDevice]=useState(false)
  const [audioBlocked,setAudioBlocked]=useState(false)
  useEffect(()=>{
   mounted.current=true
@@ -45,7 +47,7 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
   }
   if(mounted.current)setPhase('idle')
  }
- async function start(){
+ async function start(microphoneId:string){
   if(active.current)return
   const call:Call={closed:false}
   active.current=call
@@ -56,7 +58,7 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
    const {default:rtc}=await import('agora-rtc-sdk-ng')
    if(call.closed)return
    try{
-    call.microphone=await rtc.createMicrophoneAudioTrack()
+    call.microphone=await rtc.createMicrophoneAudioTrack(microphoneId?{microphoneId}:undefined)
    }catch{
     if(!call.closed)setMessage('Microfone indisponível. O painel continua recebendo áudio.')
    }
@@ -77,11 +79,18 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
     trace('conexão',{state,previous,reason})
    })
 
-   const audioUid=session.avatarUid??session.agentUid
+   const audioTracks=new Map<string,IRemoteAudioTrack>()
+   function playAvailableAudio(){
+    const track=audioTracks.get(String(session.agentUid))??audioTracks.get(String(session.avatarUid))
+    if(track===call.audio)return
+    call.audio?.stop()
+    call.audio=track
+    track?.play()
+   }
    client.on('user-published',async(user,media)=>{
     const fromAgent=String(user.uid)===String(session.agentUid)
     const fromAvatar=String(user.uid)===String(session.avatarUid)
-    const isAudio=media==='audio'&&String(user.uid)===String(audioUid)
+    const isAudio=media==='audio'&&(fromAgent||fromAvatar)
     const isVideo=media==='video'&&fromAvatar&&onVideo
     if(call.closed)return
     if(fromAgent||fromAvatar)trace('faixa publicada',{origem:fromAgent?'agente':'avatar',media,selecionada:Boolean(isAudio||isVideo)})
@@ -90,9 +99,8 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
      await client.subscribe(user,media)
      if(call.closed)return
      if(isAudio&&user.audioTrack){
-      call.audio=user.audioTrack
-      call.audio.play()
-      trace('reprodução',{fonte:fromAvatar?'avatar':'agente'})
+      audioTracks.set(String(user.uid),user.audioTrack)
+      playAvailableAudio()
      }
      if(isVideo)onVideo(user.videoTrack??null)
     }catch{
@@ -102,6 +110,7 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
    client.on('user-unpublished',(user,media)=>{
     if(call.closed)return
     const fromAvatar=String(user.uid)===String(session.avatarUid)
+    if(media==='audio'&&audioTracks.delete(String(user.uid)))playAvailableAudio()
     if(media==='video'&&fromAvatar)onVideo?.(null)
    })
    await client.join(session.appId,session.channel,session.token,session.uid)
@@ -139,7 +148,11 @@ export function VoiceButton({api,className,idleLabel="Falar com Roger",icon,onVi
   }
  }
  return <>
-  <button type="button" className={className} disabled={phase==='connecting'} onClick={()=>phase==='active'?stop():start()}>{icon}{phase==='active'?'Encerrar conversa':phase==='connecting'?'Conectando…':idleLabel}</button>
+  {choosingDevice&&<DevicePicker kind="audioinput" onClose={()=>setChoosingDevice(false)} onSelect={id=>{
+   setChoosingDevice(false)
+   void start(id)
+  }}/>}
+  <button type="button" className={className} disabled={phase==='connecting'} onClick={()=>phase==='active'?stop():setChoosingDevice(true)}>{icon}{phase==='active'?'Encerrar conversa':phase==='connecting'?'Conectando…':idleLabel}</button>
   {audioBlocked&&phase==='active'&&<button type="button" onClick={()=>{
    setAudioBlocked(false)
    active.current?.audio?.play()

@@ -1,5 +1,6 @@
 'use client'
 
+import {DevicePicker} from '../lib/device-picker'
 import {useEffect,useRef,useState,type PointerEvent as ReactPointerEvent} from 'react'
 
 export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:()=>void;closing?:boolean}){
@@ -7,7 +8,8 @@ export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:
   const video=useRef<HTMLVideoElement>(null)
   const cameraRequest=useRef(0)
   const stream=useRef<MediaStream|null>(null)
-  const [message,setMessage]=useState('Solicitando acesso à câmera…')
+  const [message,setMessage]=useState('Escolha uma câmera para iniciar a prévia.')
+  const [choosingDevice,setChoosingDevice]=useState(false)
   const [maximized,setMaximized]=useState(false)
   const [offset,setOffset]=useState({x:0,y:0})
   const [size,setSize]=useState<{width:number;height:number}|null>(null)
@@ -18,13 +20,13 @@ export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:
     stream.current=null
     if(video.current) video.current.srcObject=null
   }
-  const startCamera=async()=>{
+  const startCamera=async(deviceId:string)=>{
     stopCamera()
     const request=cameraRequest.current
     if(!navigator.mediaDevices?.getUserMedia){setMessage('Este navegador não oferece acesso à câmera.');return}
     setMessage('Solicitando acesso à câmera…')
     try {
-      const next=await navigator.mediaDevices.getUserMedia({video:true,audio:false})
+      const next=await navigator.mediaDevices.getUserMedia({video:deviceId?{deviceId:{exact:deviceId}}:true,audio:false})
       if(request!==cameraRequest.current){next.getTracks().forEach(track=>track.stop());return}
       stream.current=next
       if(video.current){video.current.srcObject=next;await video.current.play()}
@@ -73,13 +75,13 @@ export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:
   }
   useEffect(()=>{
     if(!open){stopCamera();return}
-    void startCamera()
+    setChoosingDevice(true)
     return stopCamera
   },[open])
 
   if(!open) return null
 
-  return <section ref={panel} className={`camera-window-panel perimeter-panel${maximized?' is-maximized':''}${closing?' is-closing':''}`} role="dialog" aria-modal="false" aria-labelledby="camera-window-title" style={{transform:`translate(${offset.x}px,${offset.y}px)`,width:maximized?'min(60vw,760px)':size?.width??undefined,height:maximized?'min(74vh,650px)':size?.height??undefined}}>
+  return <><section ref={panel} className={`camera-window-panel perimeter-panel${maximized?' is-maximized':''}${closing?' is-closing':''}`} role="dialog" aria-modal="false" aria-labelledby="camera-window-title" style={{transform:`translate(${offset.x}px,${offset.y}px)`,width:maximized?'min(60vw,760px)':size?.width??undefined,height:maximized?'min(74vh,650px)':size?.height??undefined}}>
     <header className="camera-window-header" onPointerDown={startDrag}>
       <div><strong id="camera-window-title">Câmera</strong><small>Prévia ao vivo</small></div>
       <div className="camera-modal-controls" aria-label="Controles da câmera">
@@ -92,7 +94,12 @@ export function CameraWindow({open,onClose,closing=false}:{open:boolean;onClose:
       <video ref={video} muted playsInline autoPlay aria-label="Prévia da webcam"/>
       <p role="status">{message}</p>
     </div>
-    {message!=='Câmera ativa'&&<button type="button" className="camera-retry" onClick={()=>void startCamera()}>Tentar novamente</button>}
+    <button type="button" className="camera-retry" onClick={()=>setChoosingDevice(true)}>Escolher câmera</button>
     <button type="button" className="camera-resize-handle" aria-label="Redimensionar câmera" onPointerDown={startResize}/>
   </section>
+  {choosingDevice&&<DevicePicker kind="videoinput" onClose={()=>setChoosingDevice(false)} onSelect={id=>{
+    setChoosingDevice(false)
+    void startCamera(id)
+  }}/>}
+  </>
 }
